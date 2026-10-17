@@ -1825,7 +1825,7 @@
       const range = loopRange(loop);
       const open = loop.startMarkId && !loop.endMarkId;
       return `
-        <div class="pm-loop-card ${active ? 'active' : ''} ${!valid && !open ? 'invalid' : ''}" data-loop-id="${loop.id}">
+        <div class="pm-loop-card ${active ? 'active' : ''} ${!valid && !open ? 'invalid' : ''}" data-loop-id="${loop.id}" tabindex="0" role="group" aria-label="${escapeHtml(displayLoopName(loop))}. Click or press Enter to practice this loop." title="Click to play this loop">
           <div class="pm-loop-head">
             <div class="pm-loop-title-row">
               <button class="pm-loop-number ${active ? 'active' : ''}" data-activate-loop="${loop.id}" title="Practice this loop">${active && state.looping ? '▶' : 'L'}${index + 1}</button>
@@ -1936,10 +1936,9 @@
 
         <div class="pm-section pm-capture-section">
           <div class="pm-capture-label">CAPTURE</div>
-          <div class="pm-row">
+          <div class="pm-row two">
             <button class="pm-btn primary" data-action="mark">＋ Mark</button>
             <button class="pm-btn" data-action="again">↶ Again</button>
-            <button class="pm-btn" data-action="loop">⟳ Loop</button>
           </div>
           <div class="pm-capture-count">Next mark starts Loop 1</div>
           <div class="pm-status">Say “mark that” as the video plays. Two marks make a loop automatically. Voice works best when your voice is clearer than the video audio.</div>
@@ -1966,7 +1965,7 @@
           <div class="pm-section-head">
             <div>
               <div class="pm-section-title">Loops</div>
-              <div class="pm-section-sub">Change dropdowns or drag marks onto Start / End.</div>
+              <div class="pm-section-sub">Click a loop card to play it. Change dropdowns or drag marks onto Start / End.</div>
             </div>
             <button class="pm-text-btn" data-action="new-loop">+ New loop</button>
           </div>
@@ -2041,6 +2040,13 @@
         return;
       }
 
+      // Card background/title clicks should behave like the Practice button.
+      // Don't steal clicks from controls used to rename, edit, or manage a loop.
+      if (!event.target.closest('button, input, select, textarea, a, label, [contenteditable="true"]')) {
+        const card = event.target.closest('.pm-loop-card[data-loop-id]');
+        if (card) return activateLoop(card.dataset.loopId, { restart: true, enableLoop: true, play: true });
+      }
+
       const button = event.target.closest('[data-action]');
       if (button) handleAction(button.dataset.action);
     });
@@ -2059,7 +2065,18 @@
 
     root.addEventListener('keydown', event => {
       const input = event.target.closest('[data-loop-name]');
-      if (input && event.key === 'Enter') input.blur();
+      if (input && event.key === 'Enter') {
+        input.blur();
+        return;
+      }
+
+      // The card can also be activated from the keyboard when directly focused.
+      // Keystrokes inside its editable controls retain their normal behavior.
+      const card = event.target.closest('.pm-loop-card[data-loop-id]');
+      if (card && event.target === card && (event.key === 'Enter' || event.key === ' ')) {
+        event.preventDefault();
+        activateLoop(card.dataset.loopId, { restart: true, enableLoop: true, play: true });
+      }
     });
 
     root.addEventListener('dragstart', event => {
