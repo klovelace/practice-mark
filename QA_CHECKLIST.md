@@ -10,6 +10,11 @@ This is a **manual checklist**, not a record of a completed browser QA run. Run 
 - [ ] On a non-YouTube page, the extension does not display its content script.
 - [ ] Create marks M1 and M2 and confirm a loop is available.
 - [ ] Play that loop and confirm playback returns to the starting mark.
+- [ ] Confirm the capture area has Mark and Again but no top Loop button.
+- [ ] Click a completed loop card's background or title; confirm selection, seeking to its start, and playback.
+- [ ] Confirm the same action works with Enter or Space when the loop card is focused.
+- [ ] Confirm clicking the loop name, mark dropdowns, delete, Again, and speed buttons does not inadvertently trigger the card click.
+- [ ] Click an incomplete loop card; confirm it shows a warning instead of starting playback.
 - [ ] Rename a loop, modify its boundaries, and change speed.
 - [ ] Reload the same video and confirm marks and loops persist; open another video and confirm distinct state.
 
