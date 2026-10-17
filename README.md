@@ -57,7 +57,17 @@ The interface also supports direct mouse controls. Voice is an optional convenie
 
 The published distribution is an **unlisted beta**. A public Chrome Web Store URL has not been added to this repository; access to the unlisted listing requires its direct link.
 
-**Source packaging note:** The current repository snapshot does **not** include the `icons/` assets referenced by `manifest.json`. Therefore, cloning the repository alone is not yet a complete unpacked-extension installation path. The packaged beta is the appropriate way to evaluate the released extension until those assets are restored. This is a known source-distribution gap, not a claim of full build reproducibility.
+**Source packaging:** The manifest now references the existing 128×128 `glyph-mark.png` asset, removing broken `icons/` paths. Chrome may scale that image for smaller icon contexts; dedicated 16-, 32-, and 48-pixel designs remain a visual polish opportunity. Run `node scripts/verify-package.mjs` to check manifest assets and JavaScript syntax before loading the source.
+
+## Install from source (developer testing)
+
+1. Clone or download this repository.
+2. In Chrome, open `chrome://extensions`, enable **Developer mode**, and select **Load unpacked**.
+3. Choose the repository root, which contains `manifest.json`.
+4. Open a YouTube watch page and click the extension's toolbar icon to show the panel.
+5. Follow the [manual release smoke test](./QA_CHECKLIST.md) before describing a version as verified.
+
+The extension does not require an npm build step. Running `node scripts/verify-package.mjs` checks packaging integrity, not browser behavior.
 
 ## Limitations and next steps
 
