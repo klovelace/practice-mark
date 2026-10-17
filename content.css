@@ -110,7 +110,11 @@
   gap: 8px;
 }
 
-.pm-loop-card { border: 1px solid var(--pm-border); background: var(--pm-panel-2); border-radius: 12px; padding: 9px; }
+.pm-loop-card { border: 1px solid var(--pm-border); background: var(--pm-panel-2); border-radius: 12px; padding: 9px; cursor: pointer; }
+.pm-loop-card:hover { border-color: rgba(57,217,138,.45); }
+.pm-loop-card:focus-visible { outline: 2px solid var(--pm-good); outline-offset: 2px; }
+.pm-loop-card button, .pm-loop-card input, .pm-loop-card select { cursor: auto; }
+.pm-loop-card button { cursor: pointer; }
 .pm-loop-card.active { border-color: rgba(57,217,138,.65); box-shadow: inset 0 0 0 1px rgba(57,217,138,.18); }
 .pm-loop-card.invalid { border-color: rgba(255, 211, 122, .25); }
 .pm-loop-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
