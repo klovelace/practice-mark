@@ -177,6 +177,7 @@
       startMarkId: loop.startMarkId || null,
       endMarkId: loop.endMarkId || null,
       playbackRate: Number(loop.playbackRate) || 1,
+      repeatEnabled: loop.repeatEnabled !== false,
       createdAt: loop.createdAt || Date.now()
     }));
 
@@ -208,6 +209,7 @@
       ? migrated.activeLoopId
       : (completeLoops().at(-1)?.id || state.loops.at(-1)?.id || null);
     state.settings = { preRoll: 0, ...(result[SETTINGS_KEY] || {}) };
+    await importSharedPractice();
 
     await ensureEngagementSession();
     await saveVideoState();
@@ -221,13 +223,125 @@
     if (!key) return;
     await chrome.storage.local.set({
       [key]: {
-        version: 3,
+        version: 4,
         marks: state.marks,
         loops: state.loops,
         activeLoopId: state.activeLoopId,
         updatedAt: Date.now()
       }
     });
+  }
+
+
+  function practiceSnapshot() {
+    return {
+      format: 'practice-mark', version: 1, videoId: state.videoId,
+      marks: state.marks, loops: state.loops,
+      activeLoopId: state.activeLoopId
+    };
+  }
+
+  async function exportPractice() {
+    if (!state.videoId) return status('Open a YouTube video to save practice marks.', 'warn');
+    await saveVideoState();
+    const payload = { ...practiceSnapshot(), exportedAt: new Date().toISOString() };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `practice-mark-${state.videoId}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    toast('Practice saved to file');
+  }
+
+  function encodePracticeShare(payload) {
+    const bytes = new TextEncoder().encode(JSON.stringify(payload));
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += 8192) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+    }
+    return btoa(binary).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/g, '');
+  }
+
+  async function sharePractice() {
+    if (!state.videoId) return status('Open a YouTube video first.', 'warn');
+    if (!state.marks.length) return status('Add some marks before sharing.', 'warn');
+    const share = new URL('https://www.youtube.com/watch');
+    share.searchParams.set('v', state.videoId);
+    share.hash = 'pm=' + encodePracticeShare(practiceSnapshot());
+    if (share.href.length > 12000) {
+      return status('Too many marks for a share link. Use Save to export a file.', 'warn');
+    }
+    try {
+      await navigator.clipboard.writeText(share.href);
+      toast('Practice link copied');
+    } catch (_) {
+      window.prompt('Copy this practice link:', share.href);
+    }
+  }
+
+  function validateSharedPractice(payload) {
+    if (!payload || payload.format !== 'practice-mark' || payload.version !== 1 ||
+        payload.videoId !== state.videoId || !Array.isArray(payload.marks) ||
+        !Array.isArray(payload.loops) || payload.marks.length > 300 || payload.loops.length > 150) {
+      throw new Error('Invalid practice link for this video');
+    }
+    const safeId = id => typeof id === 'string' && /^[A-Za-z0-9_-]{1,96}$/.test(id);
+    const markIds = new Set();
+    const marks = payload.marks.map(mark => {
+      if (!mark || !safeId(mark.id) || markIds.has(mark.id) ||
+          !Number.isFinite(mark.time) || mark.time < 0 || mark.time > 864000) {
+        throw new Error('Invalid mark in shared practice');
+      }
+      markIds.add(mark.id);
+      return { id: mark.id, time: mark.time,
+        createdAt: Number.isFinite(mark.createdAt) ? mark.createdAt : Date.now() };
+    });
+    const loopIds = new Set();
+    const loops = payload.loops.map(loop => {
+      if (!loop || !safeId(loop.id) || loopIds.has(loop.id) ||
+          (loop.startMarkId && !markIds.has(loop.startMarkId)) ||
+          (loop.endMarkId && !markIds.has(loop.endMarkId))) {
+        throw new Error('Invalid loop in shared practice');
+      }
+      loopIds.add(loop.id);
+      return { id: loop.id, name: typeof loop.name === 'string' ? loop.name.slice(0, 40) : '',
+        startMarkId: loop.startMarkId || null, endMarkId: loop.endMarkId || null,
+        playbackRate: SPEED_STEPS.includes(loop.playbackRate) ? loop.playbackRate : 1,
+        repeatEnabled: loop.repeatEnabled !== false,
+        createdAt: Number.isFinite(loop.createdAt) ? loop.createdAt : Date.now() };
+    });
+    return { marks, loops, activeLoopId: loopIds.has(payload.activeLoopId) ? payload.activeLoopId : null };
+  }
+
+  async function importSharedPractice() {
+    const hash = location.hash;
+    if (!hash.startsWith('#pm=')) return;
+    try {
+      const encoded = hash.slice(4);
+      if (encoded.length > 16000 || !/^[A-Za-z0-9_-]+$/.test(encoded)) throw new Error('Invalid link size or encoding');
+      const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
+      const raw = atob(base64);
+      const bytes = Uint8Array.from(raw, c => c.charCodeAt(0));
+      const payload = JSON.parse(new TextDecoder().decode(bytes));
+      const imported = validateSharedPractice(payload);
+      if ((state.marks.length || state.loops.length) &&
+          !window.confirm('Import shared Practice Mark data? This will replace your saved marks and loops for this video.')) {
+        return;
+      }
+      state.marks = imported.marks;
+      state.loops = imported.loops;
+      state.activeLoopId = imported.activeLoopId || imported.loops.at(-1)?.id || null;
+      state.looping = false;
+      // Prevent the same shared snapshot from replacing subsequent local edits.
+      history.replaceState(history.state, '', location.pathname + location.search);
+      status('Shared practice imported. Use Save to keep a portable backup.', 'good');
+    } catch (error) {
+      status('Could not import Practice Mark share link: ' + error.message, 'warn');
+    }
   }
 
   async function loadEngagement() {
@@ -684,7 +798,7 @@
       return false;
     }
     state.activeLoopId = loop.id;
-    state.looping = enableLoop;
+    state.looping = enableLoop && loop.repeatEnabled !== false;
     applyLoopSpeed(loop);
     if (restart) {
       const range = loopRange(loop);
@@ -736,9 +850,24 @@
     }
     state.activeLoopId = loop.id;
     state.looping = typeof force === 'boolean' ? force : !state.looping;
+    loop.repeatEnabled = state.looping;
+    void saveVideoState();
     if (state.looping) applyLoopSpeed(loop);
     render();
     toast(state.looping ? `${displayLoopName(loop)} looping` : 'Loop stopped');
+  }
+
+  function toggleLoopRepeat(loopId) {
+    const loop = getLoop(loopId);
+    if (!loop) return;
+    loop.repeatEnabled = loop.repeatEnabled === false;
+    if (loop.id === state.activeLoopId) {
+      // Disable the boundary reset but do not pause, seek, or stop the video.
+      state.looping = loop.repeatEnabled && isValidLoop(loop);
+    }
+    void saveVideoState();
+    render();
+    toast(`${displayLoopName(loop)} repeat ${loop.repeatEnabled ? 'on' : 'off'}`);
   }
 
   function nearestSpeedIndex(rate) {
@@ -1831,6 +1960,7 @@
               <button class="pm-loop-number ${active ? 'active' : ''}" data-activate-loop="${loop.id}" title="Practice this loop">${active && state.looping ? '▶' : 'L'}${index + 1}</button>
               <input class="pm-loop-name" data-loop-name="${loop.id}" value="${escapeHtml(loop.name || '')}" placeholder="Loop ${index + 1}" maxlength="40" aria-label="Loop ${index + 1} name" title="Rename it, then say the name: e.g. Chorus again or Practice chorus">
             </div>
+            <button class="pm-loop-repeat ${loop.repeatEnabled === false ? 'off' : 'on'}" data-toggle-loop-repeat="${loop.id}" aria-pressed="${loop.repeatEnabled !== false}" title="Turn repeat ${loop.repeatEnabled === false ? 'on' : 'off'} for this loop. Playback continues when repeat is off.">${loop.repeatEnabled === false ? '↻ Off' : '↻ On'}</button>
             <button class="pm-delete-loop" data-delete-loop="${loop.id}" title="Delete loop">×</button>
           </div>
 
@@ -1899,6 +2029,8 @@
       case 'start': return markExplicitStart();
       case 'end': return markExplicitEnd();
       case 'new-loop': return createEmptyLoop();
+      case 'save-practice': return exportPractice();
+      case 'share-practice': return sharePractice();
       case 'again': return again();
       case 'play': return playVideo();
       case 'pause': return pauseVideo();
@@ -1930,6 +2062,8 @@
           <div class="pm-brand"><span class="pm-dot"></span><span>Practice Mark</span><span class="pm-version">v${chrome.runtime.getManifest().version}</span></div>
           <div class="pm-top-actions">
             <span class="pm-video-time">--:--</span>
+            <button class="pm-toolbar-btn" data-action="save-practice" title="Download these marks and loops as a backup">Save</button>
+            <button class="pm-toolbar-btn" data-action="share-practice" title="Copy a YouTube link containing these marks and loops">Share</button>
             <button class="pm-icon-btn" data-action="close" title="Hide panel">×</button>
           </div>
         </div>
@@ -2009,6 +2143,12 @@
         event.stopPropagation();
         deleteMark(deleteMarkBtn.dataset.deleteMark);
         return;
+      }
+
+      const repeatBtn = event.target.closest('[data-toggle-loop-repeat]');
+      if (repeatBtn) {
+        event.stopPropagation();
+        return toggleLoopRepeat(repeatBtn.dataset.toggleLoopRepeat);
       }
 
       const deleteLoopBtn = event.target.closest('[data-delete-loop]');
