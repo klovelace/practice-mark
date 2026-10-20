@@ -81,3 +81,11 @@ The extension does not require an npm build step. Running `node scripts/verify-p
 Practice marks and loops are saved locally in Chrome. Voice is opt-in and no audio is recorded by Practice Mark. Read [PRIVACY.md](./PRIVACY.md) for full details. For questions, contact [Glyph Analytics](https://glyphanalytics.com/).
 
 This project demonstrates product ownership, interface design, user-centered iteration, and responsible browser integration. It does not claim to train or deploy a proprietary AI model.
+
+
+## v0.4.17 test build: Save, Share, and per-loop repeat
+
+- **Save** in the top bar downloads a `practice-mark-VIDEOID.json` backup of the current video's marks and loops. Normal editing still saves automatically within the browser.
+- **Share** in the top bar copies a YouTube link with a self-contained snapshot of marks and loops. The recipient needs this test version of the extension; opening that link imports the snapshot for the same video. If existing marks exist, importing requests confirmation before replacement. Links are not hosted by Glyph or a third party. Links with too much data for a reasonable URL instead prompt the user to use Save.
+- Each loop card has a small **↻ On / ↻ Off** button. Off stops repetition at the end boundary without pausing playback; selecting a loop with repetition Off plays through its section once. The setting persists independently per loop.
+- This feature branch is a source-based test build, not yet tested in Edge or released to the Web Store.
