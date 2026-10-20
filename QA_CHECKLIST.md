@@ -35,3 +35,13 @@ This is a **manual checklist**, not a record of a completed browser QA run. Run 
 ## Known limits
 
 Chrome speech recognition varies by environment, microphone, browser availability, and interfering lesson audio. This checklist does not establish that a packaged Web Store release behaves identically to the unpacked development build.
+
+
+## v0.4.17 Save / Share / repeat regression checks
+
+- [ ] Save exports current video's marks and loops in JSON. Editing remains autosaved after refresh.
+- [ ] Share copies a YouTube watch link. Open on another profile with v0.4.17 and verify marks, names, boundaries, speeds, and repeat flags import.
+- [ ] Opening a share link with existing data asks before replacing it; cancel leaves original data intact.
+- [ ] Click a loop card to play; toggle small repeat button Off while playing. Video continues past end without jumping back.
+- [ ] Each loop remembers its own repeat preference across page refresh and switching to other loops.
+- [ ] Toggle On resumes repetition for an active loop, and turn Off does not delete or shift marks.
